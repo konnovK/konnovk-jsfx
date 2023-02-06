@@ -1,0 +1,115 @@
+desc:kGATE
+//author konnovk
+//version 0.1
+
+slider1: -48<-48,0,0.1>Threshold [dB]
+
+slider2: 100<1,500,1>Attack [ms]
+slider3: 100<1,500,1>Release [ms]
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+
+@init
+
+
+// =================================================================
+// value in [0, 1] to db
+//
+function to_db(f1)
+(
+  20 * log10( f1 / 1 );
+);
+// =================================================================
+
+
+// =================================================================
+// make value in range [-1, 1]
+//
+function lr(value l r)
+(
+  max( l , min( r , value ) );
+);
+// =================================================================
+
+
+// =================================================================
+// calculate maximum from values modulo
+//
+function maxabs(value1 value2)
+(
+  max( abs(value1) , abs(value2) );
+);
+// =================================================================
+
+
+// =================================================================
+// calculate RMS function
+//
+rms_window_size = floor( 0.2 * srate ); // in samples
+rms_sum = 0;
+buf_i = 0;
+function calc_rms(level) local(buf)
+(
+  buf[buf_i] = level;
+  rms_sum = rms_sum + sqr(buf[buf_i]) - sqr(buf[ (buf_i + 1) % rms_window_size ]);
+  
+  buf_i += 1;
+  buf_i >= rms_window_size ? ( buf_i = 0; );
+  
+  sqrt(rms_sum / rms_window_size) * ( 2.15/log(2) );
+);
+// =================================================================
+
+gain = 1;
+rms_db = 0;
+
+
+@slider
+
+
+threshold = 10 ^ (slider1 / 20);
+
+atk_ms = slider2 + 0.00000001;
+atk_db_s = (1000 * 20) / ( atk_ms * log(10) ) * 6;
+atk = 10 ^ ( (atk_db_s / srate) / 20 );
+
+rel_ms = slider3;
+rel_db_s = (1000 * 20) / ( rel_ms * log(10) ) * 6;
+rel = 10 ^ ( (rel_db_s / srate) / 20 );
+
+gain = 1;
+rms_db = 0;
+
+
+@sample
+
+
+rms = calc_rms(maxabs(spl0, spl1));
+
+rms_db = to_db(rms);
+thresh_db = slider1 - 0.0000001;
+
+db_diff = rms_db - thresh_db;
+
+db_diff < 0 ? (
+  seekgain = 0;
+) : (
+  seekgain = 1;
+);
+
+gain > seekgain ? (
+  gain = gain / (rel) + 0.00000001;
+  gain = lr(gain, 0, 1);
+  spl0 = gain * spl0;
+  spl1 = gain * spl1;
+) : (
+  gain = gain * (atk) + 0.00000001;
+  gain = lr(gain, 0, 1);
+  spl0 = gain * spl0;
+  spl1 = gain * spl1;
+);
+
