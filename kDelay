@@ -1,0 +1,103 @@
+desc:kDelay
+//author konnovk
+//version 0.1
+// TODO: invalid ping pong, fix it
+// TODO: strange clicks in first delay, fix it
+
+slider1:300<1,2000,1>Delay [ms]
+slider2:50<0,100,1>Feedback [%]
+slider3:20<20,20000,1>hiPASS [Hz]
+slider4:20000<20,20000,1>loPASS [Hz]
+slider5:50<0,100,1>Dry/Wet [%]
+slider6:0<0,1,1{no,yes}> Ping-Pong
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+
+i = 0;
+
+@slider
+
+dly_spls = floor( ( slider1 / 1000 ) * srate );
+offset = dly_spls;
+
+feedback = slider2 / 100;
+drywet = slider5 / 100;
+
+hp = slider3;
+lp = slider4;
+
+// PARAMS OF FILTER
+thetac = 2 * $PI * (lp / srate);
+d = 1;
+beta = 0.5 * ( ( 1 - sin(thetac) * (d / 2) ) / ( 1 + sin(thetac) * (d / 2) ) );
+gamma = ( 0.5 + beta ) * cos(thetac);
+
+lpa0 = ( 0.5 + beta - gamma ) / 2.0;
+lpa1 = 0.5 + beta - gamma;
+lpa2 = ( 0.5 + beta - gamma ) / 2.0;
+lpb1 = -2 * gamma;
+lpb2 = 2 * beta;
+
+thetac = 2 * $PI * (hp / srate);
+d = 1;
+beta = 0.5 * ( ( 1 - sin(thetac) * (d / 2) ) / ( 1 + sin(thetac) * (d / 2) ) );
+gamma = ( 0.5 + beta ) * cos(thetac);
+
+hpa0 = ( 0.5 + beta + gamma ) / 2.0;
+hpa1 = - ( 0.5 + beta + gamma );
+hpa2 = ( 0.5 + beta + gamma ) / 2.0;
+hpb1 = -2 * gamma;
+hpb2 = 2 * beta;
+// END PARAMS OF FILTER
+
+@sample
+
+cur0 = spl0;
+cur1 = spl1;
+
+fb0 = buf[(i + 1) % dly_spls];
+fb1 = buf[offset + ((i + 1) % dly_spls)];
+
+// FILTER fbX
+ppx0 = px0;
+ppx1 = px1;
+px0 = x0;
+px1 = x1;
+x0 = fb0;
+x1 = fb1;
+
+ppy0 = py0;
+ppy1 = py1;
+py0 = y0;
+py1 = y1;
+y0 = lpa0 * x0 + lpa1 * px0 + lpa2 * ppx0 - lpb1 * py0 - lpb2 * ppy0;
+y1 = lpa0 * x1 + lpa1 * px1 + lpa2 * ppx1 - lpb1 * py1 - lpb2 * ppy1;
+
+_ppy0 = _py0;
+_ppy1 = _py1;
+_py0 = _y0;
+_py1 = _y1;
+_y0 = hpa0 * x0 + hpa1 * px0 + hpa2 * ppx0 - hpb1 * _py0 - hpb2 * _ppy0;
+_y1 = hpa0 * x1 + hpa1 * px1 + hpa2 * ppx1 - hpb1 * _py1 - hpb2 * _ppy1;
+
+fb0 = y0 + _y0 - fb0;
+fb1 = y1 + _y1 - fb1;
+// END FILTER fbX
+
+fb0 *= feedback;
+fb1 *= feedback;
+
+res0 = cur0 + fb0;
+res1 = cur1 + fb1;
+
+buf[i] = res0;
+buf[offset + i] = res1;
+i = (i + 1) % dly_spls;
+
+spl0 = fb0 * drywet + cur0 * (1 - drywet);
+spl1 = fb1 * drywet + cur1 * (1 - drywet); 
