@@ -1,0 +1,94 @@
+desc:kFilter
+//author konnovk
+//version 0.1
+// Simple LPF&HPF
+// Second order HPF&LPF with Q
+ 
+slider1:20000<20,20000,1>LPF Freq
+slider2:1<0.1,10,0.1>LPF Q
+
+slider3:100<20,20000,1>HPF Freq
+slider4:1<0.1,10,0.1>HPF Q
+
+
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+
+
+@slider
+
+fc = slider1;
+q = slider2;
+
+thetac = 2 * $PI * (fc / srate);
+d = 1 / q;
+beta = 0.5 * ( ( 1 - sin(thetac) * (d / 2) ) / ( 1 + sin(thetac) * (d / 2) ) );
+gamma = ( 0.5 + beta ) * cos(thetac);
+
+lpfa0 = ( 0.5 + beta - gamma ) / 2.0;
+lpfa1 = 0.5 + beta - gamma;
+lpfa2 = ( 0.5 + beta - gamma ) / 2.0;
+lpfb1 = -2 * gamma;
+lpfb2 = 2 * beta;
+
+fc = slider3;
+q = slider4;
+
+thetac = 2 * $PI * (fc / srate);
+d = 1 / q;
+beta = 0.5 * ( ( 1 - sin(thetac) * (d / 2) ) / ( 1 + sin(thetac) * (d / 2) ) );
+gamma = ( 0.5 + beta ) * cos(thetac);
+
+hpfa0 = ( 0.5 + beta + gamma ) / 2.0;
+hpfa1 = - ( 0.5 + beta + gamma );
+hpfa2 = ( 0.5 + beta + gamma ) / 2.0;
+hpfb1 = -2 * gamma;
+hpfb2 = 2 * beta;
+
+lpfpp0 = 0;
+lpfpp1 = 0;
+lpfp0 = 0;
+lpfp1 = 0;
+lpfc0 = 0;
+lpfc1 = 0;
+
+lpfppy0 = 0;
+lpfppy1 = 0;
+lpfpy0 = 0;
+lpfpy1 = 0;
+lpfy0 = 0;
+lpfy1 = 0;
+
+@sample
+
+ppx0 = px0;
+ppx1 = px1;
+px0 = x0;
+px1 = x1;
+x0 = spl0;
+x1 = spl1;
+
+
+ppy0 = py0;
+ppy1 = py1;
+py0 = y0;
+py1 = y1;
+y0 = lpfa0 * x0 + lpfa1 * px0 + lpfa2 * ppx0 - lpfb1 * py0 - lpfb2 * ppy0;
+y1 = lpfa0 * x1 + lpfa1 * px1 + lpfa2 * ppx1 - lpfb1 * py1 - lpfb2 * ppy1;
+
+_ppy0 = _py0;
+_ppy1 = _py1;
+_py0 = _y0;
+_py1 = _y1;
+_y0 = hpfa0 * x0 + hpfa1 * px0 + hpfa2 * ppx0 - hpfb1 * _py0 - hpfb2 * _ppy0;
+_y1 = hpfa0 * x1 + hpfa1 * px1 + hpfa2 * ppx1 - hpfb1 * _py1 - hpfb2 * _ppy1;
+
+spl0 = y0 + _y0 - spl0;
+spl1 = y1 + _y1 - spl1;
+
+
